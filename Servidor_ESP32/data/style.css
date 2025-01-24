@@ -1,0 +1,68 @@
+/* Estilo general */
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f0f4f8;
+  color: #333;
+  text-align: center;
+}
+
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #ffffff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+h1 {
+  font-size: 24px;
+  color: #0056b3;
+  margin-bottom: 20px;
+}
+
+h2 {
+  font-size: 20px;
+  margin-top: 20px;
+  color: #007bff;
+}
+
+/* Controles del LED */
+.led-controls button {
+  font-size: 16px;
+  margin: 10px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  color: #fff;
+  background-color: #007bff;
+  transition: background-color 0.3s ease;
+}
+
+.led-controls button:hover {
+  background-color: #0056b3;
+}
+
+.led-controls .status {
+  font-size: 14px;
+  margin-top: 10px;
+  color: #555;
+}
+
+/* Visualización de distancia */
+.distance-display {
+  margin-top: 20px;
+  padding: 20px;
+  background: #e9f5ff;
+  border-radius: 10px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.distance {
+  font-size: 24px;
+  color: #0056b3;
+  font-weight: bold;
+}

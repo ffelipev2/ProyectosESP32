@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de LED y Sensor de Distancia</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>ESP32: Control de LED y Distancia</h1>
+    
+    <!-- Controles del LED -->
+    <div class="led-controls">
+      <button id="ledOn" onclick="toggleLED('ledOn')">Encender LED</button>
+      <button id="ledOff" onclick="toggleLED('ledOff')">Apagar LED</button>
+      <p id="ledStatus" class="status">Estado del LED: Desconocido</p>
+    </div>
+
+    <!-- Visualización de distancia -->
+    <div class="distance-display">
+      <h2>Distancia</h2>
+      <p id="distance" class="distance">Esperando datos...</p>
+    </div>
+  </div>
+
+  <script src="/script.js"></script>
+</body>
+</html>
