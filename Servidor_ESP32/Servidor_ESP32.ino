@@ -1,7 +1,7 @@
 #include <WiFi.h>
 #include <WebSocketsServer.h>
 #include <DHT.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
@@ -42,21 +42,22 @@ void setup() {
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
-
   // Configuración de WiFi
   WiFi.softAP("ESP32-AP", "12345678");
   IPAddress IP = WiFi.softAPIP();
   Serial.print("Dirección IP del AP: ");
   Serial.println(IP);
 
-  // Configuración del SPIFFS
-  if (!SPIFFS.begin(true)) {
-    Serial.println("Error montando SPIFFS");
+  // Configuración de LittleFS
+  if (!LittleFS.begin(true)) {
+    Serial.println("Error montando LittleFS");
     return;
+  } else {
+    Serial.println("LittleFS montado correctamente");
   }
 
   // Configuración de las rutas
-  server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
+  server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
   // Configuración del WebSocket
   webSocket.begin();
