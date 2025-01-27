@@ -66,3 +66,16 @@ h2 {
   color: #0056b3;
   font-weight: bold;
 }
+
+.sensor-display {
+  margin-top: 20px;
+  padding: 20px;
+  background: #e9f5ff;
+  border-radius: 10px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sensor-display p {
+  font-size: 18px;
+  margin: 10px 0;
+}

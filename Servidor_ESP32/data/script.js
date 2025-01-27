@@ -5,12 +5,13 @@ webSocket.onopen = function () {
 };
 
 webSocket.onmessage = function (event) {
-  // Si recibimos un número, es la distancia
-  if (!isNaN(event.data)) {
-    document.getElementById("distance").textContent = `${event.data} cm`;
-  } else {
-    // Si es texto, mostrarlo como estado del LED
-    document.getElementById("ledStatus").textContent = `Estado del LED: ${event.data}`;
+  try {
+    const data = JSON.parse(event.data);
+    document.getElementById("distance").textContent = `${data.distancia.toFixed(2)} cm`;
+    document.getElementById("temperature").textContent = `${data.temperatura.toFixed(1)} °C`;
+    document.getElementById("humidity").textContent = `${data.humedad.toFixed(1)} %`;
+  } catch (error) {
+    console.error("Error al procesar datos WebSocket:", error);
   }
 };
 

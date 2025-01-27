@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Control de LED y Sensor de Distancia</title>
+  <title>ESP32: Control y Sensores</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <div class="container">
-    <h1>ESP32: Control de LED y Distancia</h1>
+    <h1>ESP32: Control de LED y Sensores</h1>
     
     <!-- Controles del LED -->
     <div class="led-controls">
@@ -17,10 +17,12 @@
       <p id="ledStatus" class="status">Estado del LED: Desconocido</p>
     </div>
 
-    <!-- Visualización de distancia -->
-    <div class="distance-display">
-      <h2>Distancia</h2>
-      <p id="distance" class="distance">Esperando datos...</p>
+    <!-- Datos de los sensores -->
+    <div class="sensor-display">
+      <h2>Datos de Sensores</h2>
+      <p><strong>Distancia:</strong> <span id="distance">Esperando datos...</span></p>
+      <p><strong>Temperatura:</strong> <span id="temperature">Esperando datos...</span></p>
+      <p><strong>Humedad:</strong> <span id="humidity">Esperando datos...</span></p>
     </div>
   </div>
 

@@ -1,110 +1,119 @@
 #include <WiFi.h>
-#include <FS.h>
-#include <SPIFFS.h>
-#include <WebServer.h>
 #include <WebSocketsServer.h>
+#include <DHT.h>
+#include <SPIFFS.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 
-// Configuración del Access Point
-const char* ssid = "ESP32-AP";
-const char* password = "12345678";
+// Pines y configuración del DHT22
+#define DHTPIN 4 // Cambiar al pin conectado al DHT22
+#define DHTTYPE DHT22
+DHT dht(DHTPIN, DHTTYPE, 22);
 
-// Pines del LED y HC-SR04
+// Pines y configuración del HC-SR04
+#define TRIG_PIN 27
+#define ECHO_PIN 26
+
+// Configuración del LED
 #define LED_PIN 2
-#define TRIG_PIN 5
-#define ECHO_PIN 18
+bool ledState = false;
 
-// Crear servidor web y WebSocket
-WebServer server(80);
+// Variables de tiempo
+unsigned long lastSensorUpdate = 0;
+
+// WiFi y servidor
+AsyncWebServer server(80);
 WebSocketsServer webSocket(81);
 
-// Variable para almacenar la distancia
+// Variables de los sensores
+float temperatura = 0.0;
+float humedad = 0.0;
 float distancia = 0.0;
-unsigned long lastDistanceUpdate = 0; // Para el temporizador
 
-// Función para medir la distancia con el HC-SR04
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  
+  // Inicialización del LED
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
+  // Inicialización del HC-SR04
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+
+  // Configuración de WiFi
+  WiFi.softAP("ESP32-AP", "12345678");
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("Dirección IP del AP: ");
+  Serial.println(IP);
+
+  // Configuración del SPIFFS
+  if (!SPIFFS.begin(true)) {
+    Serial.println("Error montando SPIFFS");
+    return;
+  }
+
+  // Configuración de las rutas
+  server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
+
+  // Configuración del WebSocket
+  webSocket.begin();
+  webSocket.onEvent(webSocketEvent);
+
+  // Inicia el servidor
+  server.begin();
+}
+
+void loop() {
+  // Manejar WebSocket
+  webSocket.loop();
+
+  // Actualizar los sensores cada 1 segundo
+  if (millis() - lastSensorUpdate >= 1000) {
+    lastSensorUpdate = millis();
+
+    // Leer datos del HC-SR04
+    distancia = medirDistancia();
+
+    // Leer datos del DHT22
+    temperatura = dht.readTemperature();
+    humedad = dht.readHumidity();
+
+    // Enviar datos por WebSocket
+    String sensorData = String("{\"distancia\":") + distancia +
+                        ",\"temperatura\":" + temperatura +
+                        ",\"humedad\":" + humedad + "}";
+    webSocket.broadcastTXT(sensorData);
+
+    Serial.println(sensorData); // Debug
+  }
+}
+
 float medirDistancia() {
   digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
   digitalWrite(TRIG_PIN, HIGH);
   delayMicroseconds(10);
   digitalWrite(TRIG_PIN, LOW);
+
   long duracion = pulseIn(ECHO_PIN, HIGH);
-  return (duracion * 0.034) / 2; // Distancia en cm
+  float distancia = (duracion * 0.034) / 2; // Conversión a cm
+  return distancia;
 }
 
-// Función para manejar mensajes WebSocket
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
   if (type == WStype_TEXT) {
-    String msg = String((char *)payload);
-    if (msg == "ledOn") {
+    String message = String((char *)payload);
+    if (message == "ledOn") {
+      ledState = true;
       digitalWrite(LED_PIN, HIGH);
-      webSocket.sendTXT(num, "LED encendido");
-    } else if (msg == "ledOff") {
+      webSocket.broadcastTXT("LED encendido");
+    } else if (message == "ledOff") {
+      ledState = false;
       digitalWrite(LED_PIN, LOW);
-      webSocket.sendTXT(num, "LED apagado");
+      webSocket.broadcastTXT("LED apagado");
     }
-  }
-}
-
-void setup() {
-  // Configuración de pines
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-
-  Serial.begin(115200);
-  Serial.println("Iniciando ESP32...");
-
-  // Iniciar SPIFFS
-  if (!SPIFFS.begin(true)) {
-    Serial.println("Error al montar SPIFFS");
-    return;
-  }
-
-  // Configurar Access Point
-  WiFi.softAP(ssid, password);
-  Serial.println("Access Point configurado");
-  Serial.println(WiFi.softAPIP());
-
-  // Rutas para servir archivos estáticos
-  server.on("/", HTTP_GET, []() {
-    File file = SPIFFS.open("/index.html", "r");
-    server.streamFile(file, "text/html");
-    file.close();
-  });
-  server.on("/style.css", HTTP_GET, []() {
-    File file = SPIFFS.open("/style.css", "r");
-    server.streamFile(file, "text/css");
-    file.close();
-  });
-  server.on("/script.js", HTTP_GET, []() {
-    File file = SPIFFS.open("/script.js", "r");
-    server.streamFile(file, "application/javascript");
-    file.close();
-  });
-
-  // Iniciar el servidor web
-  server.begin();
-  Serial.println("Servidor iniciado");
-
-  // Iniciar WebSocket
-  webSocket.begin();
-  webSocket.onEvent(webSocketEvent);
-  Serial.println("WebSocket iniciado");
-}
-
-void loop() {
-  // Manejar solicitudes de clientes y WebSocket
-  server.handleClient();
-  webSocket.loop();
-
-  // Actualizar la distancia cada 1 segundo y enviarla por WebSocket
-  if (millis() - lastDistanceUpdate >= 1000) {
-    lastDistanceUpdate = millis();
-    distancia = medirDistancia();
-    Serial.println("Distancia: " + String(distancia) + " cm");
-    String distanciaStr = String(distancia);
-    webSocket.broadcastTXT(distanciaStr);
   }
 }
