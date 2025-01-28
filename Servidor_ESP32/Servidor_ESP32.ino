@@ -110,11 +110,11 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
     if (message == "ledOn") {
       ledState = true;
       digitalWrite(LED_PIN, HIGH);
-      webSocket.broadcastTXT("LED encendido");
+      webSocket.broadcastTXT("{\"led\":\"on\"}"); // Enviar estado del LED
     } else if (message == "ledOff") {
       ledState = false;
       digitalWrite(LED_PIN, LOW);
-      webSocket.broadcastTXT("LED apagado");
+      webSocket.broadcastTXT("{\"led\":\"off\"}"); // Enviar estado del LED
     }
   }
 }
