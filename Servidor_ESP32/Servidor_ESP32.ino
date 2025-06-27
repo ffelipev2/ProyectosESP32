@@ -6,12 +6,12 @@
 #include <ESPAsyncWebServer.h>
 
 // Pines y configuración del DHT22
-#define DHTPIN 4 // Cambiar al pin conectado al DHT22
+#define DHTPIN 16
 #define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE, 22);
 
 // Pines y configuración del HC-SR04
-#define TRIG_PIN 27
+#define TRIG_PIN 25
 #define ECHO_PIN 26
 
 // Configuración del LED
@@ -33,7 +33,7 @@ float distancia = 0.0;
 void setup() {
   Serial.begin(115200);
   dht.begin();
-  
+
   // Inicialización del LED
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
@@ -48,7 +48,7 @@ void setup() {
   Serial.print("Dirección IP del AP: ");
   Serial.println(IP);
 
-  // Configuración de LittleFS
+  // Inicialización del sistema de archivos
   if (!LittleFS.begin(true)) {
     Serial.println("Error montando LittleFS");
     return;
@@ -71,24 +71,29 @@ void loop() {
   // Manejar WebSocket
   webSocket.loop();
 
-  // Actualizar los sensores cada 1 segundo
+  // Actualizar sensores cada 1 segundo
   if (millis() - lastSensorUpdate >= 1000) {
     lastSensorUpdate = millis();
 
-    // Leer datos del HC-SR04
+    // Leer distancia
     distancia = medirDistancia();
 
-    // Leer datos del DHT22
+    // Leer temperatura y humedad
     temperatura = dht.readTemperature();
     humedad = dht.readHumidity();
 
-    // Enviar datos por WebSocket
-    String sensorData = String("{\"distancia\":") + distancia +
-                        ",\"temperatura\":" + temperatura +
-                        ",\"humedad\":" + humedad + "}";
-    webSocket.broadcastTXT(sensorData);
+    // Validar valores y armar JSON seguro
+    String distanciaStr = isnan(distancia) ? "null" : String(distancia, 2);
+    String temperaturaStr = isnan(temperatura) ? "null" : String(temperatura, 1);
+    String humedadStr = isnan(humedad) ? "null" : String(humedad, 1);
 
-    Serial.println(sensorData); // Debug
+    String sensorData = String("{\"distancia\":") + distanciaStr +
+                        ",\"temperatura\":" + temperaturaStr +
+                        ",\"humedad\":" + humedadStr + "}";
+
+    // Enviar por WebSocket
+    webSocket.broadcastTXT(sensorData);
+    Serial.println(sensorData);  // Debug
   }
 }
 
@@ -99,8 +104,11 @@ float medirDistancia() {
   delayMicroseconds(10);
   digitalWrite(TRIG_PIN, LOW);
 
-  long duracion = pulseIn(ECHO_PIN, HIGH);
-  float distancia = (duracion * 0.034) / 2; // Conversión a cm
+  long duracion = pulseIn(ECHO_PIN, HIGH, 30000); // timeout de 30 ms
+  if (duracion == 0) {
+    return NAN; // No se midió nada
+  }
+  float distancia = (duracion * 0.034) / 2;
   return distancia;
 }
 
@@ -110,11 +118,11 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
     if (message == "ledOn") {
       ledState = true;
       digitalWrite(LED_PIN, HIGH);
-      webSocket.broadcastTXT("{\"led\":\"on\"}"); // Enviar estado del LED
+      webSocket.broadcastTXT("{\"led\":\"on\"}");
     } else if (message == "ledOff") {
       ledState = false;
       digitalWrite(LED_PIN, LOW);
-      webSocket.broadcastTXT("{\"led\":\"off\"}"); // Enviar estado del LED
+      webSocket.broadcastTXT("{\"led\":\"off\"}");
     }
   }
 }
