@@ -42,11 +42,18 @@ void setup() {
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
-  // Configuración de WiFi
-  WiFi.softAP("ESP32-AP", "12345678");
-  IPAddress IP = WiFi.softAPIP();
-  Serial.print("Dirección IP del AP: ");
-  Serial.println(IP);
+// Configuración de WiFi en modo cliente
+WiFi.begin("Mi_casa", "ramses123");
+Serial.println("Conectando a WiFi...");
+
+while (WiFi.status() != WL_CONNECTED) {
+  delay(500);
+  Serial.print(".");
+}
+
+Serial.println("");
+Serial.print("Conectado! Dirección IP: ");
+Serial.println(WiFi.localIP());
 
   // Inicialización del sistema de archivos
   if (!LittleFS.begin(true)) {
