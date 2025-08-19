@@ -1,0 +1,110 @@
+/* Estilo general */
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f0f4f8;
+  color: #333;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh; /* Ocupa toda la altura de la pantalla */
+}
+
+.container {
+  width: 90%; /* Usa el 90% del ancho disponible */
+  max-width: 1200px; /* Limita el ancho máximo */
+  padding: 20px;
+  background: #ffffff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+h1 {
+  font-size: 28px; /* Tamaño más grande para pantallas grandes */
+  color: #0056b3;
+  margin-bottom: 20px;
+}
+
+h2 {
+  font-size: 22px;
+  margin-top: 20px;
+  color: #007bff;
+}
+
+/* Logo de la universidad */
+.logo {
+  margin-bottom: 20px;
+}
+
+.logo-img {
+  width: 100px; /* Tamaño ajustable */
+  height: auto;
+}
+
+/* Controles del LED */
+.led-controls {
+  display: flex;
+  flex-direction: column; /* Asegura que los botones y el estado estén apilados */
+  align-items: center;
+  margin-top: 20px;
+}
+
+.led-controls .button-container {
+  display: flex; /* Coloca los botones en una fila */
+  gap: 15px; /* Espaciado uniforme entre los botones */
+  justify-content: center;
+}
+
+.led-controls button {
+  font-size: 18px;
+  padding: 10px 30px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  color: #fff;
+  background-color: #007bff;
+  transition: background-color 0.3s ease;
+}
+
+.led-controls button:hover {
+  background-color: #0056b3;
+}
+
+.led-controls .status {
+  font-size: 16px;
+  margin-top: 15px; /* Espacio entre los botones y el estado */
+  color: #555;
+  text-align: center;
+}
+
+/* Visualización de sensores */
+.sensor-display {
+  margin-top: 20px;
+  padding: 20px;
+  background: #e9f5ff;
+  border-radius: 10px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sensor {
+  display: flex;
+  align-items: center;
+  margin: 10px 0;
+}
+
+.sensor-icon {
+  width: 30px; /* Tamaño de los iconos */
+  height: auto;
+  margin-right: 10px; /* Espacio entre el icono y el texto */
+}
+
+.sensor-display p {
+  font-size: 20px;
+  margin: 0;
+}

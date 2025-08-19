@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32: Control y Sensores</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>ESP32: Control de LED y Sensores</h1>
+    
+    <!-- Logo de la universidad -->
+    <div class="logo">
+      <img src="uss.jpg" alt="Logo Universidad" class="logo-img">
+    </div>
+    
+    <!-- Controles del LED -->
+    <div class="led-controls">
+      <div class="button-container">
+        <button id="ledOn" onclick="toggleLED('ledOn')">Encender LED</button>
+        <button id="ledOff" onclick="toggleLED('ledOff')">Apagar LED</button>
+      </div>
+      <p id="ledStatus" class="status">Estado del LED: Desconocido</p>
+    </div>
+
+    <!-- Datos de los sensores -->
+    <div class="sensor-display">
+      <h2>Datos de Sensores</h2>
+      <div class="sensor">
+        <img src="dist.png" alt="Icono Distancia" class="sensor-icon">
+        <p><strong>Distancia:</strong> <span id="distance">Esperando datos...</span></p>
+      </div>
+      <div class="sensor">
+        <img src="temp.png" alt="Icono Temperatura" class="sensor-icon">
+        <p><strong>Temperatura:</strong> <span id="temperature">Esperando datos...</span></p>
+      </div>
+      <div class="sensor">
+        <img src="hum.png" alt="Icono Humedad" class="sensor-icon">
+        <p><strong>Humedad:</strong> <span id="humidity">Esperando datos...</span></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
