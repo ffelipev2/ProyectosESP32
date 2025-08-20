@@ -1,4 +1,4 @@
-let webSocket = new WebSocket(`ws://${location.hostname}:81/`);
+let webSocket = new WebSocket(`ws://${location.hostname}/ws`);
 
 webSocket.onopen = function () {
   console.log("WebSocket conectado");

@@ -1,9 +1,8 @@
 #include <WiFi.h>
-#include <WebSocketsServer.h>
-#include <DHT.h>
-#include <LittleFS.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <DHT.h>
+#include <LittleFS.h>
 
 // Pines y configuración del DHT22
 #define DHTPIN 16
@@ -23,7 +22,7 @@ unsigned long lastSensorUpdate = 0;
 
 // WiFi y servidor
 AsyncWebServer server(80);
-WebSocketsServer webSocket(81);
+AsyncWebSocket ws("/ws");   // WebSocket en la ruta /ws
 
 // Variables de los sensores
 float temperatura = 0.0;
@@ -42,18 +41,25 @@ void setup() {
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
-// Configuración de WiFi en modo cliente
-WiFi.begin("Mi_casa", "ramses123");
-Serial.println("Conectando a WiFi...");
+  // Configuración de WiFi en modo estación
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false); // mejora tiempos de respuesta
+  WiFi.begin("Mi_casa", "ramses123");
+  Serial.print("Conectando a WiFi");
 
-while (WiFi.status() != WL_CONNECTED) {
-  delay(500);
-  Serial.print(".");
-}
+  unsigned long startAttemptTime = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+    delay(500);
+    Serial.print(".");
+  }
 
-Serial.println("");
-Serial.print("Conectado! Dirección IP: ");
-Serial.println(WiFi.localIP());
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ Conectado a WiFi");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\n❌ No se pudo conectar a WiFi");
+  }
 
   // Inicialización del sistema de archivos
   if (!LittleFS.begin(true)) {
@@ -63,20 +69,20 @@ Serial.println(WiFi.localIP());
     Serial.println("LittleFS montado correctamente");
   }
 
-  // Configuración de las rutas
+  // Configuración de las rutas HTTP
   server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
   // Configuración del WebSocket
-  webSocket.begin();
-  webSocket.onEvent(webSocketEvent);
+  ws.onEvent(onWebSocketEvent);
+  server.addHandler(&ws);
 
   // Inicia el servidor
   server.begin();
 }
 
 void loop() {
-  // Manejar WebSocket
-  webSocket.loop();
+  // No es necesario llamar loop() como en WebSocketsServer
+  // AsyncWebServer maneja todo en segundo plano automáticamente
 
   // Actualizar sensores cada 1 segundo
   if (millis() - lastSensorUpdate >= 1000) {
@@ -99,7 +105,7 @@ void loop() {
                         ",\"humedad\":" + humedadStr + "}";
 
     // Enviar por WebSocket
-    webSocket.broadcastTXT(sensorData);
+    ws.textAll(sensorData);
     Serial.println(sensorData);  // Debug
   }
 }
@@ -119,17 +125,26 @@ float medirDistancia() {
   return distancia;
 }
 
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
-  if (type == WStype_TEXT) {
-    String message = String((char *)payload);
+void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
+                      AwsEventType type, void *arg, uint8_t *data, size_t len) {
+  if (type == WS_EVT_DATA) {
+    // Construir el mensaje correctamente con el tamaño real (len)
+    String message = "";
+    for (size_t i = 0; i < len; i++) {
+      message += (char)data[i];
+    }
+
+    Serial.print("Mensaje recibido: ");
+    Serial.println(message);
+
     if (message == "ledOn") {
       ledState = true;
-      digitalWrite(LED_PIN, HIGH);
-      webSocket.broadcastTXT("{\"led\":\"on\"}");
+      digitalWrite(LED_PIN, HIGH);   // o LOW si es invertido
+      ws.textAll("{\"led\":\"on\"}");
     } else if (message == "ledOff") {
       ledState = false;
-      digitalWrite(LED_PIN, LOW);
-      webSocket.broadcastTXT("{\"led\":\"off\"}");
+      digitalWrite(LED_PIN, LOW);    // o HIGH si es invertido
+      ws.textAll("{\"led\":\"off\"}");
     }
   }
 }

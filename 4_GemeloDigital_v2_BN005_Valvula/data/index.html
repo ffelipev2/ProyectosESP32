@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Gemelo Digital - Bomba · Válvula · Tanque</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { --panel: rgba(0,0,0,.65); --ok:#52c41a; --warn:#faad14; --bad:#ff4d4f; }
+  html,body { margin:0; height:100%; background:#000; font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+  canvas { display:block; }
+  .panel {
+    position:absolute; left:16px; top:16px; padding:12px 14px; border-radius:10px;
+    background:var(--panel); color:#fff; font-size:14px; min-width:260px; backdrop-filter: blur(4px);
+  }
+  .panel h3 { margin:0 0 8px 0; font-size:16px; }
+  .grid { display:grid; grid-template-columns: 1fr auto; gap:6px 10px; align-items:center; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-weight:600; }
+  .btn {
+    position:absolute; right:16px; top:16px; padding:10px 14px; border:0; border-radius:10px;
+    background:#ffc107; color:#000; font-weight:700; cursor:pointer;
+  }
+  .toast {
+    position:absolute; right:16px; bottom:16px; padding:10px 14px; border-radius:10px;
+    background:var(--panel); color:#fff; display:none;
+  }
+  .hint {
+    position:absolute; left:16px; bottom:16px; padding:8px 10px; border-radius:10px; color:#ddd;
+    background:var(--panel); font-size:12px; line-height:1.3; max-width:460px;
+  }
+</style>
+</head>
+<body>
+<button id="btnCal" class="btn">Calibrar</button>
+
+<div class="panel">
+  <h3>KPIs en vivo</h3>
+  <div class="grid">
+    <div>Válvula (YAW):</div><div id="kValve" class="badge" style="background:#444;">0%</div>
+    <div>Bomba (PITCH):</div><div id="kPump"  class="badge" style="background:#444;">0%</div>
+    <div>Caudal simulado:</div><div id="kFlow">0.0 L/min</div>
+    <div>Nivel tanque:</div><div id="kLevel">0%</div>
+    <div>Vibración RMS:</div><div id="kRMS">0.000 g</div>
+    <div>Impactos:</div><div id="kImp">0</div>
+    <div>Temp IMU:</div><div id="kT">-- °C</div>
+    <div>Estado máquina:</div><div id="kState" class="badge" style="background:#444;">IDLE</div>
+  </div>
+</div>
+
+<div id="toast" class="toast">¡IMPACTO / WATER HAMMER!</div>
+
+<div class="hint">
+  <b>Controles con el propio sensor:</b><br/>
+  • Gira el dispositivo (YAW) → abre/cierra la <b>válvula</b>.<br/>
+  • Inclina (PITCH) → cambia la <b>velocidad de la bomba</b>.<br/>
+  • Sacude → sube la <b>vibración</b> (RMS).<br/>
+  • Da un golpe suave → simula <b>water hammer</b> (impacto).<br/>
+  <em>El nivel del tanque y el caudal se calculan en tiempo real a partir de la válvula y la bomba.</em>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+
+<script>
+/* ========= ESCENA 3D ========= */
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 200);
+camera.position.set(3.8, 2.2, 4.6); camera.lookAt(0, 1.2, 0);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dir = new THREE.DirectionalLight(0xffffff, 0.9); dir.position.set(5,6,4); scene.add(dir);
+
+// Suelo
+const gPlane = new THREE.PlaneGeometry(12, 8);
+const mPlane = new THREE.MeshPhongMaterial({color:0x0a0a0a, side:THREE.DoubleSide});
+const plane = new THREE.Mesh(gPlane, mPlane); plane.rotation.x = -Math.PI/2; scene.add(plane);
+
+// Grupo principal
+const rig = new THREE.Group(); scene.add(rig);
+
+// Tubería
+const pipe = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.25, 0.25, 4, 32),
+  new THREE.MeshPhongMaterial({color:0x2979ff})
+);
+pipe.rotation.z = Math.PI/2; pipe.position.set(0, 1.0, 0);
+rig.add(pipe);
+
+// Válvula mariposa simple (disco + manilla)
+const valveGroup = new THREE.Group(); valveGroup.position.set(0, 1.0, 0);
+const valveBody = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.3,0.3,0.2,32),
+  new THREE.MeshPhongMaterial({color:0x666666})
+);
+valveBody.rotation.z = Math.PI/2;
+const handle = new THREE.Mesh(
+  new THREE.BoxGeometry(0.8, 0.07, 0.07),
+  new THREE.MeshPhongMaterial({color:0xffc107})
+);
+handle.position.y = 0.25;
+valveGroup.add(valveBody, handle);
+rig.add(valveGroup);
+
+// Bomba (motor + base + rotor)
+const pumpGroup = new THREE.Group(); pumpGroup.position.set(-2.0, 0.8, 0);
+const motor = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.4,0.4,1.0,24),
+  new THREE.MeshPhongMaterial({color:0x607d8b})
+);
+motor.rotation.z = Math.PI/2;
+const base = new THREE.Mesh(
+  new THREE.BoxGeometry(1.4, 0.1, 0.8),
+  new THREE.MeshPhongMaterial({color:0x263238})
+);
+base.position.y = -0.35;
+const rotor = new THREE.Mesh(
+  new THREE.TorusGeometry(0.28, 0.06, 12, 36),
+  new THREE.MeshPhongMaterial({color:0x00c853})
+);
+rotor.position.x = 0.55;
+pumpGroup.add(motor, base, rotor);
+rig.add(pumpGroup);
+
+// Tanque (cilindro transparente + “agua” interna)
+const tankGroup = new THREE.Group(); tankGroup.position.set(2.2, 0.9, 0);
+const tank = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.8, 0.8, 2.0, 32, 1, true),
+  new THREE.MeshPhongMaterial({color:0x90a4ae, transparent:true, opacity:0.25})
+);
+const water = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.79, 0.79, 1.98, 32),
+  new THREE.MeshPhongMaterial({color:0x2196f3, transparent:true, opacity:0.55})
+);
+water.position.y = -0.01;
+tankGroup.add(tank, water);
+rig.add(tankGroup);
+
+// Partículas simples de “burbujas” (opcional, livianas)
+const bubbleGeo = new THREE.SphereGeometry(0.03, 8, 8);
+const bubbles = [];
+for (let i=0;i<30;i++){
+  const b = new THREE.Mesh(bubbleGeo, new THREE.MeshPhongMaterial({color:0x90caf9}));
+  b.position.set(2.2 + (Math.random()-0.5)*0.7, 0.1 + Math.random()*0.9, (Math.random()-0.5)*0.6);
+  scene.add(b); bubbles.push(b);
+}
+
+/* ========= TELEMETRÍA & SIMULACIÓN ========= */
+// Offsets de montaje/calibración
+const mountingOffset = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI/2, 0, -Math.PI/2));
+let dynamicOffset = new THREE.Quaternion(); dynamicOffset.identity();
+
+let lastSensorQuat = new THREE.Quaternion();
+let haveQuat = false;
+
+// KPI refs
+const kValve = document.getElementById('kValve');
+const kPump  = document.getElementById('kPump');
+const kFlow  = document.getElementById('kFlow');
+const kLevel = document.getElementById('kLevel');
+const kRMS   = document.getElementById('kRMS');
+const kImp   = document.getElementById('kImp');
+const kT     = document.getElementById('kT');
+const kState = document.getElementById('kState');
+
+const toast = document.getElementById('toast');
+
+// Estados simulados
+let sim = {
+  valvePct: 0,     // 0..100
+  pumpPct: 0,      // 0..100
+  flowLpm: 0,      // L/min
+  tankPct: 30,     // 0..100
+  demandPct: 20,   // “salida” del tanque
+  rms: 0,
+  temp: 0,
+  impacts: 0,
+  health: 100,     // 0..100
+  state: 'IDLE',   // IDLE/RUN/ALARM
+};
+
+const MAX_FLOW_LPM   = 120; // caudal nominal max
+const MAX_DEMAND_LPM = 80;  // consumo aguas abajo
+const TANK_CAP_L     = 1000;
+
+let lastTick = performance.now();
+
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+// Señales SSE
+const evt = new EventSource('/events');
+evt.addEventListener('telemetry', (e)=>{
+  const d = JSON.parse(e.data);
+  // Quat normalizado
+  const q = new THREE.Quaternion(d.quat.x, d.quat.y, d.quat.z, d.quat.w).normalize();
+  lastSensorQuat.copy(q); haveQuat = true;
+
+  // Vibración / temperatura / impactos
+  sim.rms = d.rms.tot;
+  sim.temp = d.temp;
+  sim.impacts = d.impacts;
+
+  // KPIs rápidos
+  kRMS.textContent = sim.rms.toFixed(3) + " g";
+  kT.textContent   = sim.temp + " °C";
+  kImp.textContent = sim.impacts;
+});
+
+evt.addEventListener('alarm', ()=>{
+  // impacto → efecto visual y estado ALARM momentáneo
+  toast.style.display = 'block';
+  setTimeout(()=> toast.style.display='none', 1200);
+  sim.state = 'ALARM';
+  setTimeout(()=> { if (sim.rms < 0.08 && sim.pumpPct < 5) sim.state = 'IDLE'; else sim.state = 'RUN'; }, 1400);
+});
+
+// Calibración
+document.getElementById('btnCal').addEventListener('click', ()=>{
+  if (!haveQuat) return;
+  const current = mountingOffset.clone().multiply(lastSensorQuat);
+  dynamicOffset.copy(current.clone().invert());
+});
+
+// Mapea YAW/PITCH/ROLL desde el quaternion calibrado
+function getCalibratedEulerDeg(){
+  if (!haveQuat) return {yaw:0,pitch:0,roll:0};
+  const q = dynamicOffset.clone().multiply(mountingOffset).multiply(lastSensorQuat);
+  const e = new THREE.Euler().setFromQuaternion(q, 'ZYX'); // yaw(Z) - pitch(Y) - roll(X)
+  return {
+    yaw   : THREE.MathUtils.radToDeg(e.z), // ojo: por convención elegimos Z como yaw de escena
+    pitch : THREE.MathUtils.radToDeg(e.y),
+    roll  : THREE.MathUtils.radToDeg(e.x)
+  };
+}
+
+// Animación + Simulación
+function tick(){
+  const now = performance.now();
+  const dt = (now - lastTick)/1000; // seg
+  lastTick = now;
+
+  // 1) Entradas desde el IMU (controles “naturales”)
+  const {yaw, pitch, roll} = getCalibratedEulerDeg();
+
+  // Válvula: abre con |yaw|
+  sim.valvePct = clamp(Math.abs(yaw)/90*100, 0, 100);
+
+  // Bomba: acelera con |pitch|
+  sim.pumpPct  = clamp(Math.abs(pitch)/60*100, 0, 100);
+
+  // Demanda aguas abajo: opcional con roll
+  sim.demandPct = clamp(Math.abs(roll)/60*100, 0, 100);
+
+  // 2) Caudal simulado (bomba * válvula * eficiencia por vibración)
+  const effVib = clamp(1.0 - (sim.rms*0.9), 0.6, 1.0); // vibración reduce eficiencia (mín 60%)
+  const flowCmd = (sim.pumpPct/100) * (sim.valvePct/100);
+  const noise = (Math.random()-0.5) * 0.04; // pequeño ruido
+  sim.flowLpm = clamp((flowCmd + noise) * MAX_FLOW_LPM * effVib, 0, MAX_FLOW_LPM);
+
+  // 3) Tanque (balance simple): nivel += (entrada - demanda) * dt
+  const inLps   = sim.flowLpm / 60.0;
+  const demLpm  = MAX_DEMAND_LPM * (sim.demandPct/100);
+  const outLps  = demLpm / 60.0;
+  let tankLiters = (sim.tankPct/100)*TANK_CAP_L;
+  tankLiters += (inLps - outLps) * dt;
+  tankLiters = clamp(tankLiters, 0, TANK_CAP_L);
+  sim.tankPct = (tankLiters / TANK_CAP_L) * 100;
+
+  // 4) Salud/estado por vibración
+  const vibAlarm = sim.rms > 0.10;      // ajusta umbral
+  const vibWarn  = sim.rms > 0.06;
+  if (vibAlarm) sim.state = 'ALARM';
+  else if (sim.pumpPct > 5 || sim.valvePct > 5) sim.state = 'RUN';
+  else sim.state = 'IDLE';
+
+  // 5) Actualizar UI numérica
+  kValve.textContent = `${sim.valvePct.toFixed(0)}%`;
+  kPump.textContent  = `${sim.pumpPct.toFixed(0)}%`;
+  kFlow.textContent  = `${sim.flowLpm.toFixed(1)} L/min`;
+  kLevel.textContent = `${sim.tankPct.toFixed(0)}%`;
+
+  kValve.style.background = sim.valvePct>80 ? 'var(--ok)' : (sim.valvePct>20 ? '#444' : '#444');
+  kPump.style.background  = sim.pumpPct>80 ? 'var(--ok)' : (sim.pumpPct>20 ? '#444' : '#444');
+
+  kState.textContent = sim.state;
+  kState.style.background = sim.state==='ALARM' ? 'var(--bad)' : (sim.state==='RUN' ? 'var(--ok)' : '#444');
+
+  // 6) Animación 3D
+  // rotor gira según velocidad de bomba
+  rotor.rotation.x += (sim.pumpPct/100) * 0.35;
+
+  // manilla de válvula gira 0..90°
+  handle.rotation.y = THREE.MathUtils.degToRad(sim.valvePct * 0.9);
+
+  // color bomba según vibración
+  motor.material.color.set(vibAlarm ? 0xff1744 : (vibWarn ? 0xffc107 : 0x607d8b));
+
+  // nivel de agua en el tanque (escala en Y)
+  const minH = 0.02, maxH = 1.98;
+  const h = minH + (sim.tankPct/100)*(maxH-minH);
+  water.scale.y = h / maxH;
+  water.position.y = -0.99 + h/2;
+
+  // tubería “respira” con caudal
+  const baseR = 0.25, puls = 0.002 + sim.flowLpm/MAX_FLOW_LPM * 0.01;
+  pipe.scale.set(1,1,1); pipe.scale.x = 1 + Math.sin(now*0.008)*puls;
+
+  // burbujas suben más rápido con caudal
+  for (const b of bubbles){
+    b.position.y += (0.15 + sim.flowLpm/MAX_FLOW_LPM * 0.8) * dt;
+    if (b.position.y > 2.0) b.position.y = 0.1 + Math.random()*0.2;
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+tick();
+
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
