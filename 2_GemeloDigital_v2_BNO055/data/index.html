@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Gemelo Digital BNO055 - Autocalibración PRO</title>
+  <title>Gemelo Digital BNO055 - AutocalibraciÃ³n PRO</title>
   <style>
     body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
     canvas { display: block; }
@@ -66,11 +66,12 @@
     <span class="valor" id="valG">1.00</span>
   </div>
   <button id="anotar">Copiar valores</button>
-  <em>Usa estos controles para ajustar el centro y calibración de orientación.</em>
+  <em>Usa estos controles para ajustar el centro y calibraciÃ³n de orientaciÃ³n.</em>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
 
 <script>
   const scene = new THREE.Scene();
@@ -94,32 +95,34 @@
   let targetQuaternion = new THREE.Quaternion();
   let smoothQuaternion = new THREE.Quaternion();
 
-  // Compensación inicial de montaje
+  // CompensaciÃ³n inicial de montaje
   const mountingOffset = new THREE.Quaternion();
   mountingOffset.setFromEuler(new THREE.Euler(-Math.PI / 2, 0, -Math.PI / 2));
 
-  // Offset dinámico de calibración
+  // Offset dinÃ¡mico de calibraciÃ³n
   let dynamicOffset = new THREE.Quaternion();
   dynamicOffset.identity();
 
   let lastSensorQuat = null;
 
-  const loader = new THREE.GLTFLoader();
-  loader.load('/pokemon.glb', (gltf) => {
-    modelToRotate = gltf.scene;
-    modelToRotate.scale.set(1.5, 1.5, 1.5);
-    modelToRotate.position.y = 0.8;
-    scene.add(modelToRotate);
+const loader = new THREE.GLTFLoader();
+loader.load('https://cdn.jsdelivr.net/gh/ffelipev2/ProyectosESP32@main/2_GemeloDigital_v2_BNO055/data/pokemon.glb', (gltf) => {
+  modelToRotate = gltf.scene;
+  modelToRotate.scale.set(1.5, 1.5, 1.5);
+  modelToRotate.position.y = 0.8;
+  scene.add(modelToRotate);
 
-    const evtSource = new EventSource('/events');
-    evtSource.addEventListener('accel', (event) => {
-      const data = JSON.parse(event.data);
-      const sensorQuat = new THREE.Quaternion(data.x, data.y, data.z, data.w).normalize();
-      lastSensorQuat = sensorQuat;
-
-      targetQuaternion.copy(dynamicOffset).multiply(mountingOffset).multiply(sensorQuat);
-    });
+  const evtSource = new EventSource('/events');
+  evtSource.addEventListener('accel', (event) => {
+    const data = JSON.parse(event.data);
+    const sensorQuat = new THREE.Quaternion(data.x, data.y, data.z, data.w).normalize();
+    lastSensorQuat = sensorQuat;
+    targetQuaternion.copy(dynamicOffset).multiply(mountingOffset).multiply(sensorQuat);
   });
+});
+
+
+
 
   function animate() {
     requestAnimationFrame(animate);
@@ -160,12 +163,12 @@
 
   document.getElementById('calibrar').addEventListener('click', () => {
     if (lastSensorQuat) {
-      // Calcular la orientación total actual (incluyendo el montaje)
+      // Calcular la orientaciÃ³n total actual (incluyendo el montaje)
       const currentTotalQuat = mountingOffset.clone().multiply(lastSensorQuat);
       // Invertirla para que al aplicarla el modelo quede centrado
       const inverseTotal = currentTotalQuat.clone().invert();
       dynamicOffset.copy(inverseTotal);
-      console.log("¡Calibración aplicada correctamente!");
+      console.log("Â¡CalibraciÃ³n aplicada correctamente!");
     } else {
       console.log("Esperando datos del sensor para calibrar...");
     }
