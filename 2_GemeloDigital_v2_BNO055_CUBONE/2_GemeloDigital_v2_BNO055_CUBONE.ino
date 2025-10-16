@@ -1,9 +1,12 @@
+//https://github.com/mathieucarbou/ESPAsyncWebServer
+//https://github.com/mathieucarbou/AsyncTCP
 #include <Wire.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <Adafruit_BNO055.h>
 #include <Adafruit_Sensor.h>
 #include <LittleFS.h>
+#include <ArduinoJson.h>
 
 // ===== Pines I2C ESP32-S3 Zero =====
 #define SDA_PIN 5
@@ -31,21 +34,25 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29);
 
 // ===== Control de envío =====
 unsigned long previousSend = 0;
-const unsigned long sendInterval = 50;  // 10 Hz
+const unsigned long sendInterval = 50;  // 20 Hz
 
-// ===== LED y WiFi control =====
+// ===== WiFi Control =====
+unsigned long lastWifiCheck = 0;
+const unsigned long wifiCheckInterval = 5000; // cada 5 segundos
+bool wifiPreviouslyConnected = false;
 unsigned long wifiConnectedTime = 0;
 bool ledOffAfterDelay = false;
 
 // ---------- FUNCIONES WIFI ----------
-void connectWiFiBlocking() {
+
+// Conexión inicial WiFi (bloqueante solo en setup)
+void connectWiFiInitial() {
   WiFi.mode(WIFI_STA);
   WiFi.persistent(false);
   WiFi.setAutoReconnect(true);
   WiFi.begin(ssid, password);
 
   Serial.print("Conectando WiFi");
-  // === Parpadeo azul mientras no conecta ===
   while (WiFi.status() != WL_CONNECTED) {
     setLED(0, 0, 64);  // azul on
     delay(200);
@@ -58,17 +65,33 @@ void connectWiFiBlocking() {
   Serial.print("IP: ");
   Serial.println(WiFi.localIP());
 
-  // Verde fijo al conectar
-  setLED(0, 64, 0);
+  setLED(0, 64, 0);  // Verde
   wifiConnectedTime = millis();
   ledOffAfterDelay = false;
+  wifiPreviouslyConnected = true;
 }
 
-// Monitorea la conexión y parpadea azul si se cae
-void ensureWiFi() {
+// Reconexión no bloqueante
+void checkWiFi() {
+  unsigned long now = millis();
+  if (now - lastWifiCheck < wifiCheckInterval) return;
+  lastWifiCheck = now;
+
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi desconectado. Reintentando...");
-    connectWiFiBlocking();
+    if (wifiPreviouslyConnected) {
+      Serial.println("WiFi desconectado. Intentando reconectar...");
+      wifiPreviouslyConnected = false;
+      setLED(0, 0, 64); // azul
+    }
+    WiFi.reconnect();
+  } else if (!wifiPreviouslyConnected) {
+    Serial.println("WiFi reconectado.");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+    setLED(0, 64, 0); // verde
+    wifiConnectedTime = now;
+    ledOffAfterDelay = false;
+    wifiPreviouslyConnected = true;
   }
 }
 
@@ -90,8 +113,8 @@ void setup() {
   bno.setExtCrystalUse(true);
   Serial.println("BNO055 listo.");
 
-  // WiFi con LED
-  connectWiFiBlocking();
+  // WiFi
+  connectWiFiInitial();
 
   // LittleFS
   if (!LittleFS.begin(true)) {
@@ -111,23 +134,31 @@ void setup() {
 
 // ---------- LOOP ----------
 void loop() {
-  ensureWiFi();
+  checkWiFi();
 
   unsigned long now = millis();
 
-  // Apaga el LED 10 segundos después de conectarse
+  // Apaga LED 10 segundos después de conectarse
   if (!ledOffAfterDelay && WiFi.status() == WL_CONNECTED && (now - wifiConnectedTime > 10000)) {
     setLED(0, 0, 0);  // apaga LED
     ledOffAfterDelay = true;
   }
 
   // Envía datos del sensor
-  if (now - previousSend >= sendInterval) {
+  if (WiFi.status() == WL_CONNECTED && now - previousSend >= sendInterval) {
     previousSend = now;
 
     imu::Quaternion quat = bno.getQuat();
-    String data = String("{\"x\":") + quat.x() + ",\"y\":" + quat.y() +
-                  ",\"z\":" + quat.z() + ",\"w\":" + quat.w() + "}";
-    events.send(data.c_str(), "accel", millis());
+
+    // JSON seguro y eficiente
+    StaticJsonDocument<128> doc;
+    doc["x"] = quat.x();
+    doc["y"] = quat.y();
+    doc["z"] = quat.z();
+    doc["w"] = quat.w();
+
+    char buffer[128];
+    size_t len = serializeJson(doc, buffer);
+    events.send(buffer, "quat", millis());
   }
 }

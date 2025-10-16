@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Gemelo Digital BNO055 - AutocalibraciÃ³n PRO</title>
+  <title>Gemelo Digital BNO055 - Autocalibración PRO</title>
   <style>
     body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
     canvas { display: block; }
@@ -66,14 +66,14 @@
     <span class="valor" id="valG">1.00</span>
   </div>
   <button id="anotar">Copiar valores</button>
-  <em>Usa estos controles para ajustar el centro y calibraciÃ³n de orientaciÃ³n.</em>
+  <em>Usa estos controles para ajustar el centro y calibración de orientación.</em>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
-
 <script>
+  // --- Escena básica ---
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -95,35 +95,39 @@
   let targetQuaternion = new THREE.Quaternion();
   let smoothQuaternion = new THREE.Quaternion();
 
-  // CompensaciÃ³n inicial de montaje
+  // --- Compensación inicial del montaje ---
   const mountingOffset = new THREE.Quaternion();
   mountingOffset.setFromEuler(new THREE.Euler(-Math.PI / 2, 0, -Math.PI / 2));
 
-  // Offset dinÃ¡mico de calibraciÃ³n
+  // --- Offset dinámico de calibración ---
   let dynamicOffset = new THREE.Quaternion();
   dynamicOffset.identity();
 
   let lastSensorQuat = null;
 
-const loader = new THREE.GLTFLoader();
-loader.load('https://cdn.jsdelivr.net/gh/ffelipev2/ProyectosESP32@main/2_GemeloDigital_v2_BNO055/data/pokemon.glb', (gltf) => {
-  modelToRotate = gltf.scene;
-  modelToRotate.scale.set(1.5, 1.5, 1.5);
-  modelToRotate.position.y = 0.8;
-  scene.add(modelToRotate);
+  // --- Carga del modelo 3D ---
+  const loader = new THREE.GLTFLoader();
+  loader.load('https://cdn.jsdelivr.net/gh/ffelipev2/ProyectosESP32@main/2_GemeloDigital_v2_BNO055/data/pokemon.glb', (gltf) => {
+    modelToRotate = gltf.scene;
+    modelToRotate.scale.set(1.5, 1.5, 1.5);
+    modelToRotate.position.y = 0.8;
+    scene.add(modelToRotate);
 
-  const evtSource = new EventSource('/events');
-  evtSource.addEventListener('accel', (event) => {
-    const data = JSON.parse(event.data);
-    const sensorQuat = new THREE.Quaternion(data.x, data.y, data.z, data.w).normalize();
-    lastSensorQuat = sensorQuat;
-    targetQuaternion.copy(dynamicOffset).multiply(mountingOffset).multiply(sensorQuat);
+    // --- Conexión SSE (evento: "quat") ---
+    const evtSource = new EventSource('/events');
+    evtSource.addEventListener('quat', (event) => {
+      const data = JSON.parse(event.data);
+      const sensorQuat = new THREE.Quaternion(data.x, data.y, data.z, data.w).normalize();
+      lastSensorQuat = sensorQuat;
+      targetQuaternion.copy(dynamicOffset).multiply(mountingOffset).multiply(sensorQuat);
+    });
+
+    evtSource.onerror = () => {
+      console.warn("⚠️ Conexión SSE perdida, el navegador reintentará automáticamente...");
+    };
   });
-});
 
-
-
-
+  // --- Animación principal ---
   function animate() {
     requestAnimationFrame(animate);
     smoothQuaternion.slerp(targetQuaternion, 0.1);
@@ -134,8 +138,10 @@ loader.load('https://cdn.jsdelivr.net/gh/ffelipev2/ProyectosESP32@main/2_GemeloD
       const manualX = parseFloat(document.getElementById('rotX').value || 0);
       const manualY = parseFloat(document.getElementById('rotY').value || 0);
       const manualZ = parseFloat(document.getElementById('rotZ').value || 0);
+      const ganancia = parseFloat(document.getElementById('gananciaInput').value || 1.0);
 
-      const manualEuler = new THREE.Euler(manualX, manualY, manualZ, 'ZYX');
+      // Aplicar ganancia sobre los ajustes manuales
+      const manualEuler = new THREE.Euler(manualX * ganancia, manualY * ganancia, manualZ * ganancia, 'ZYX');
       const manualQuat = new THREE.Quaternion().setFromEuler(manualEuler);
       modelToRotate.quaternion.multiply(manualQuat);
     }
@@ -144,6 +150,7 @@ loader.load('https://cdn.jsdelivr.net/gh/ffelipev2/ProyectosESP32@main/2_GemeloD
   }
   animate();
 
+  // --- Actualización UI ---
   document.querySelectorAll('input[type="number"]').forEach(input => {
     input.addEventListener('input', updateUI);
   });
@@ -154,6 +161,7 @@ loader.load('https://cdn.jsdelivr.net/gh/ffelipev2/ProyectosESP32@main/2_GemeloD
     span.textContent = Number(value).toFixed(2);
   }
 
+  // --- Botón copiar valores ---
   document.getElementById('anotar').addEventListener('click', () => {
     const fx = parseFloat(document.getElementById('rotX').value).toFixed(4);
     const fy = parseFloat(document.getElementById('rotY').value).toFixed(4);
@@ -161,19 +169,21 @@ loader.load('https://cdn.jsdelivr.net/gh/ffelipev2/ProyectosESP32@main/2_GemeloD
     alert(`Valores copiados:\nX: ${fx}\nY: ${fy}\nZ: ${fz}`);
   });
 
+  // --- Botón calibrar ---
   document.getElementById('calibrar').addEventListener('click', () => {
     if (lastSensorQuat) {
-      // Calcular la orientaciÃ³n total actual (incluyendo el montaje)
+      // Calcular la orientación total actual (incluyendo el montaje)
       const currentTotalQuat = mountingOffset.clone().multiply(lastSensorQuat);
-      // Invertirla para que al aplicarla el modelo quede centrado
+      // Invertirla para que el modelo quede centrado
       const inverseTotal = currentTotalQuat.clone().invert();
       dynamicOffset.copy(inverseTotal);
-      console.log("Â¡CalibraciÃ³n aplicada correctamente!");
+      console.log("✅ Calibración aplicada correctamente.");
     } else {
       console.log("Esperando datos del sensor para calibrar...");
     }
   });
 
+  // --- Redimensionar ventana ---
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
