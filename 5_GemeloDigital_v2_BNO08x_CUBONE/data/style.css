@@ -1,0 +1,50 @@
+body { 
+  margin: 0; 
+  background: #000; 
+  overflow: hidden; 
+  font-family: sans-serif; 
+}
+
+canvas { 
+  display: block; 
+}
+
+/* BOTONES SUPERIORES */
+#calibrarModelo, #calibrarIMU {
+  position: absolute;
+  top: 20px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 5px;
+  color: #000;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 10;
+}
+
+#calibrarModelo {
+  right: 180px;
+  background-color: #17a2b8;
+}
+
+#calibrarIMU {
+  right: 20px;
+  background-color: #ffc107;
+}
+
+/* Badge estado calibración */
+#calibStatus {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #000;
+  background-color: #666;
+  z-index: 10;
+  min-width: 140px;
+  text-align: center;
+}
